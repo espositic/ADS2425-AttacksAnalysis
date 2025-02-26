@@ -5,10 +5,10 @@ import numpy as np
 trainpath = "trainDdosLabelNumeric.csv"
 data = f.load(trainpath)
 
+#Controllo missing values
 for col in data.columns:
     missing_count = data[col].isnull().sum()
     print(f"Colonna '{col}' n. {missing_count} missing values")
-
 
 #Stampo informazioni dataset
 shape=data.shape
@@ -21,7 +21,9 @@ f.preElaborationData(data,cols)
 #Rimozione colonne inutili (min=max)
 data, removedColumns = f.removeColumns(data, cols)
 print(removedColumns)
-'''
+
+#f.preElaboration(data,'Label')
+
 #Stampo distribuzione classi
 f.preElaborationClass(data, 'Label')
 
@@ -41,8 +43,9 @@ testpath = "testDdosLabelNumeric.csv"
 testset = f.load(testpath)
 yTest = testset['Label']
 
+
 # ***************************************************
-# ****** DECISION TREE CON MUTUAL INFO RANKING ******
+# ******* DECISION TREE CON MUTUAL INFO RANK ********
 # ***************************************************
 
 #Calcolo Mutual Info Rank
@@ -116,6 +119,7 @@ yPred = bestTree.predict(XTest)
 modelName = "Decision Tree with Information Gain"
 f.computeConfusionMatrix(yTest, yPred, modelName)
 
+
 # *************************************************
 # ************* DECISION TREE CON PCA *************
 # *************************************************
@@ -160,18 +164,13 @@ f.computeConfusionMatrix(yTest, yPred, modelName)
 # **************** ENSEMBLE 10 SVM ****************
 # *************************************************
 
-
+# Campionamento stratificato per ottenere 10 sample,
+# ciascuno con il 80% dei dati originali e 20 feature selezionate casualmente
 samples, selected_features = f.stratified_random_sampling(X, y, n_splits=10, train_size=0.8, num_features=20)
+
+# Addestramento di 10 modelli SVM sui sottoinsiemi generati
 models = f.train_svm(samples)
-print("\nPerformance dell'ensemble con regola a maggioranza:")
 YPredEnsemble = f.majority_voting(models, testset, selected_features)
-
-ensemble_accuracy = np.mean(YPredEnsemble == yTest)
-print(f"  Accuracy dell'ensemble: {ensemble_accuracy}")
 modelName = "Ensemble 10 SVM"
+# Computazione e visualizzazione della matrice di confusione
 f.computeConfusionMatrix(yTest, YPredEnsemble, modelName)
-
-'''
-
-
-
