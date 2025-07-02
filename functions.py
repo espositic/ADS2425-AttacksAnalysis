@@ -1,57 +1,88 @@
 import pandas as pd
 import numpy as np
 import os
-import matplotlib
-#matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 from sklearn.feature_selection import mutual_info_classif
 import math
 from sklearn.decomposition import PCA
 from sklearn.tree import DecisionTreeClassifier, plot_tree
-from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report, make_scorer, f1_score
 from sklearn import model_selection
 from sklearn.model_selection import StratifiedShuffleSplit, GridSearchCV, train_test_split
 from sklearn.svm import SVC
-from sklearn.metrics import make_scorer, f1_score, accuracy_score
+from sklearn.preprocessing import StandardScaler
 import re
 
 
 def load(path):
-    """Carica un file CSV e restituisce un DataFrame."""
+    """
+    Carica un file CSV e restituisce un DataFrame pandas.
+
+    Args:
+        path (str): Percorso del file CSV da leggere.
+
+    Returns:
+        pd.DataFrame: DataFrame contenente i dati caricati dal file.
+    """
     return pd.read_csv(path)
 
+
 def preElaborationData(df, columns):
-    """Stampa il nome e le statistiche descrittive
-    delle colonne specificate di un DataFrame."""
+    """
+    Stampa statistiche descrittive per un elenco di colonne di un DataFrame.
+
+    Args:
+        df (pd.DataFrame): Il DataFrame da analizzare.
+        columns (list): Lista di nomi di colonne per cui mostrare le statistiche.
+
+    Returns:
+        None
+    """
     for c in columns:
         print('Column name: ', c, '\n')
         print(df[c].describe(), '\n')
 
+
 def removeColumns(df, columns):
-    """Rimuove le colonne con valori tutti uguali e
-    restituisce il DataFrame modificato e l'elenco
-    delle colonne rimosse."""
+    """
+    Rimuove dal DataFrame le colonne il cui valore minimo è uguale al valore massimo (colonne costanti).
+
+    Args:
+        df (pd.DataFrame): Il DataFrame da cui rimuovere le colonne.
+        columns (list): Lista di nomi di colonne da controllare.
+
+    Returns:
+        tuple:
+            - pd.DataFrame: DataFrame con le colonne rimosse.
+            - list: Lista delle colonne rimosse.
+    """
     removedColumns = []
+
     for c in columns:
         if df[c].min() == df[c].max():
             removedColumns.append(c)
+
     df.drop(columns=removedColumns, inplace=True)
     return df, removedColumns
 
+
 def preElaboration(df, class_column, output_dir="boxplot"):
     """
-    Genera boxplot per le colonne numeriche raggruppate per la classe.
+    Genera e salva i boxplot per le colonne numeriche di un DataFrame, raggruppate per la colonna di classe.
 
-    Parametri:
-    df (DataFrame): Il DataFrame da analizzare.
-    class_column (str): La colonna classe.
-    output_dir (str): Cartella in cui salvare i grafici (default: "boxplot").
+    Args:
+        df (pd.DataFrame): Il DataFrame contenente i dati.
+        class_column (str): Nome della colonna utilizzata per il raggruppamento nel boxplot.
+        output_dir (str, optional): Directory dove salvare i boxplot. Default è "boxplot".
+
+    Returns:
+        None
     """
-    # Create folder if it doesn't exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     numerical_cols = df.select_dtypes(include=['number']).columns.str.strip()
+
     for col in numerical_cols:
         safe_col_name = re.sub(r'[^a-zA-Z0-9]', '_', col)
         ax = df.boxplot(column=col, grid=False, by=class_column)
@@ -63,11 +94,14 @@ def preElaboration(df, class_column, output_dir="boxplot"):
 
 def preElaborationClass(data, c):
     """
-    Visualizza la distribuzione della classe con un istogramma.
+    Visualizza un grafico a barre della distribuzione dei valori per una colonna categorica.
 
-    Parametri:
-    data (DataFrame): Il DataFrame contenente i dati.
-    c (str): Il nome della colonna classe.
+    Args:
+        data (pd.DataFrame): Il DataFrame contenente i dati.
+        c (str): Nome della colonna da analizzare.
+
+    Returns:
+        None
     """
     value_counts = data[c].value_counts()
     plt.figure(figsize=(10, 5))
@@ -77,19 +111,18 @@ def preElaborationClass(data, c):
     plt.title(f"Distribuzione della variabile '{c}'")
     plt.show()
 
+
 def mutualInfoRank(data, independentList, label):
     """
-    Calcola e ordina il punteggio di Mutual Information
-    tra le variabili indipendenti e la variabile target.
+    Calcola e ordina l'importanza delle feature rispetto alla variabile target usando l'informazione mutua.
 
-    Parametri:
-    data (DataFrame): Il DataFrame contenente i dati.
-    independentList (list): Lista delle variabili indipendenti.
-    label (str): Nome della colonna target.
+    Args:
+        data (pd.DataFrame): DataFrame contenente i dati.
+        independent_list (list): Lista delle colonne/features indipendenti da valutare.
+        label (str): Nome della colonna target (variabile dipendente).
 
-    Ritorna:
-    list: Lista di tuple (feature, punteggio) ordinate in
-        ordine decrescente di importanza.
+    Returns:
+        list of tuples: Lista di tuple (feature, punteggio) ordinata dal punteggio più alto al più basso.
     """
     seed = 42
     np.random.seed(seed)
@@ -102,32 +135,34 @@ def mutualInfoRank(data, independentList, label):
     sorted_x = sorted(res.items(), key=lambda kv: kv[1], reverse=True)
     return sorted_x
 
+
 def topFeatureSelect(data, N):
     """
-    Seleziona le N feature con il punteggio più alto.
+    Seleziona le prime N feature con i punteggi più alti da una lista ordinata di tuple.
 
-    Parametri:
-    data (list): Lista di tuple (feature, punteggio), ordinata o da ordinare.
-    N (int): Numero di caratteristiche da selezionare.
+    Args:
+        data (list of tuples): Lista di tuple (feature, punteggio) ordinata o non ordinata.
+        N (int): Numero di feature da selezionare.
 
-    Ritorna:
-    list: Lista delle N caratteristiche più importanti.
+    Returns:
+        list: Lista delle prime N feature selezionate.
     """
     sorted_data = sorted(data, key=lambda x: x[1], reverse=True)
     top_features = [attribute for attribute, value in sorted_data[:N]]
     return top_features
 
+
 def infogain(feature, label):
     """
-   Calcola Information Gain di una feature rispetto alla variabile target.
+    Calcola il guadagno informativo (information gain) di una feature rispetto alla variabile target.
 
-   Parametri:
-   feature (Series): La colonna del DataFrame contenente la feature da analizzare.
-   label (Series): La colonna del DataFrame contenente la variabile target.
+    Args:
+        feature (pd.Series): La feature da valutare.
+        label (pd.Series): La variabile target.
 
-   Ritorna:
-   float: Il valore del guadagno di informazione.
-   """
+    Returns:
+        float: Il valore dell'information gain.
+    """
     value_counts = label.value_counts(normalize=True)
     original_entropy = -sum(value_counts * value_counts.apply(lambda x: math.log(x, 5)))
     feature_values = feature.unique()
@@ -141,36 +176,38 @@ def infogain(feature, label):
 
     return original_entropy - weighted_entropy
 
+
 def giClassif(data,label):
     """
-    Calcola Information Gain per tutte le colonne del DataFrame rispetto
-    alla variabile target.
+    Calcola il guadagno informativo per ogni colonna di un DataFrame rispetto alla variabile target.
 
-    Parametri:
-    data (DataFrame): Il DataFrame contenente le feature.
-    label (Series): La colonna target rispetto alla quale calcolare il guadagno di informazione.
+    Args:
+        data (pd.DataFrame): DataFrame contenente le feature da valutare.
+        label (pd.Series): Variabile target.
 
-    Ritorna:
-    list: Lista dei valori di Information Gain per ogni feature del DataFrame.
+    Returns:
+        list: Lista dei valori di guadagno informativo per ogni feature.
     """
-    cols = list(data.columns.values)
+    cols = data.columns.to_list()
     info=[]
+
     for c in cols:
         info.append(infogain(data[c],label))
+
     return info
+
 
 def giRank(data,independentList,label):
     """
-    Calcola e ordina il guadagno di informazione (Information Gain) per un
-    insieme di variabili indipendenti rispetto alla variabile target.
+    Calcola e ordina il guadagno informativo delle feature rispetto alla variabile target.
 
-    Parametri:
-    data (DataFrame): Il DataFrame contenente i dati.
-    independentList (list): Lista delle colonne indipendenti da analizzare.
-    label (str): Nome della colonna target.
+    Args:
+        data (pd.DataFrame): DataFrame contenente le feature e la variabile target.
+        independentList (list): Lista delle colonne/features indipendenti da valutare.
+        label (str): Nome della colonna target (variabile dipendente).
 
-    Ritorna:
-    list: Lista di tuple (feature, punteggio) ordinate in ordine decrescente di Information Gain.
+    Returns:
+        list of tuples: Lista di tuple (feature, guadagno informativo) ordinata dal valore più alto al più basso.
     """
     res = dict(
         zip(independentList, giClassif(data[independentList], data[label]))
@@ -180,104 +217,115 @@ def giRank(data,independentList,label):
     print(sorted_x)
     return sorted_x
 
+
 def pca(data):
     """
-    Applica l'Analisi delle Componenti Principali (PCA)
-        ai dati e genera i nomi delle componenti.
+    Esegue l'analisi delle componenti principali (PCA) sui dati forniti.
 
-    Parametri:
-    data (DataFrame): Il DataFrame contenente i dati da trasformare.
+    Args:
+        data (pd.DataFrame): DataFrame contenente i dati numerici da analizzare.
 
-    Ritorna:
-    - PCA: L'oggetto PCA addestrato.
-    - list: Lista con i nomi delle componenti principali.
+    Returns:
+        tuple:
+            - PCA: Oggetto PCA addestrato sui dati.
+            - list: Lista di nomi delle componenti principali generate (es. ["pc_1", "pc_2", ...]).
     """
     pca = PCA().fit(data)
     pca_list = []
+
     for c in range(len(data.columns.values)):
         v="pc_"+str(c+1)
         pca_list.append(v)
+
     return pca,pca_list
+
 
 def applyPCA(df, pca_model, pc_names):
     """
-    Applica un modello PCA a un DataFrame e restituisce le componenti principali.
+    Applica il modello PCA ai dati e restituisce un DataFrame con le componenti principali.
 
-    Parametri:
-    df (DataFrame): Il DataFrame su cui applicare la PCA.
-    pca_model (PCA): Il modello PCA già addestrato.
-    pc_names (list): Lista con i nomi delle componenti principali.
+    Args:
+        df (pd.DataFrame): DataFrame contenente i dati da trasformare.
+        pca_model (PCA): Modello PCA addestrato.
+        pc_names (list): Lista dei nomi delle componenti principali.
 
-    Ritorna:
-    DataFrame: Un nuovo DataFrame contenente le componenti principali.
+    Returns:
+        pd.DataFrame: DataFrame contenente le componenti principali come colonne.
     """
     pcs = pca_model.transform(df)
     pc_df = pd.DataFrame(data=pcs, columns=pc_names)
     return pc_df
 
+
 def decisionTreeLearner(X, y, criterion, min_samples_split=500):
     """
-    Crea e addestra un albero di decisione per la classificazione.
+    Addestra un classificatore ad albero decisionale con i parametri specificati.
 
-    Parametri:
-    X (DataFrame o array-like): Le feature indipendenti.
-    y (Series o array-like): La variabile target.
-    criterion (str): Il criterio di suddivisione ('gini' o 'entropy').
-    min_samples_split (int, opzionale): Numero minimo di campioni richiesti per dividere un nodo (default: 500).
+    Args:
+        X (pd.DataFrame or np.ndarray): Feature di input per l'addestramento.
+        y (pd.Series or np.ndarray): Variabile target.
+        criterion (str): Criterio di divisione ("gini" o "entropy").
+        min_samples_split (int, optional): Numero minimo di campioni richiesti per dividere un nodo. Default è 500.
 
-    Ritorna:
-    DecisionTreeClassifier: Il modello di albero di decisione addestrato.
+    Returns:
+        DecisionTreeClassifier: Modello addestrato.
     """
     tree = DecisionTreeClassifier(criterion=criterion,min_samples_split=min_samples_split)
     tree.fit(X, y)
     return tree
 
+
 def showTree(tree):
     """
-    Visualizza graficamente l'albero di decisione e stampa il numero di nodi e foglie.
+    Visualizza l'albero decisionale e stampa il numero di nodi e foglie.
 
-    Parametri:
-    tree (DecisionTreeClassifier): Il modello di albero di decisione addestrato.
+    Args:
+        tree (DecisionTreeClassifier): Modello ad albero decisionale addestrato.
+
+    Returns:
+        None
     """
     plt.figure(figsize=(40, 30))
     plot_tree(tree, filled=True, fontsize=8, proportion=True)
     plt.show()
     nNodes = tree.tree_.node_count
     nLeaves = tree.tree_.n_leaves
-    print("\nThe tree has ", nNodes, "nodes and ", nLeaves, " leaves.\n")
+    print("\nL'albero ha ", nNodes, "nodi e ", nLeaves, " foglie.\n")
+
 
 def decisionTreeF1(XTest, YTest, T):
     """
-    Calcola l'F1-score di un albero di decisione su un set di test.
+    Calcola il punteggio F1 (weighted) per un modello decision tree su dati di test.
 
-    Parametri:
-    XTest (DataFrame o array-like): Il set di feature di test.
-    YTest (Series o array-like): I valori reali della variabile target.
-    T (DecisionTreeClassifier): Il modello di albero di decisione addestrato.
+    Args:
+        XTest (pd.DataFrame or np.ndarray): Feature del set di test.
+        YTest (pd.Series or np.ndarray): Target reale del set di test.
+        T (DecisionTreeClassifier): Modello addestrato da valutare.
 
-    Ritorna:
-    float: L'F1-score calcolato con media pesata.
+    Returns:
+        float: Punteggio F1 weighted ottenuto dal modello sul set di test.
     """
     yPred = T.predict(XTest)
     f1score = f1_score(YTest, yPred, average='weighted')
     return f1score
 
+
 def stratifiedKfold(X, y, folds, seed):
     """
-    Suddivide il dataset in k-folds stratificati per la validazione incrociata.
+    Esegue una suddivisione stratificata in K-fold per dati e target forniti.
 
-    Parametri:
-    X (DataFrame o array-like): Le feature indipendenti.
-    y (Series o array-like): La variabile target.
-    folds (int): Numero di suddivisioni (k).
-    seed (int): Seed per la riproducibilità.
+    Args:
+        X (pd.DataFrame): Feature del dataset.
+        y (pd.Series): Variabile target.
+        folds (int): Numero di fold per la cross-validation.
+        seed (int): Random seed per la riproducibilità.
 
-    Ritorna:
-    tuple: Quattro liste contenenti i dati di addestramento e test per ogni fold.
-        - xTrainList (list): Lista dei DataFrame di training.
-        - xTestList (list): Lista dei DataFrame di test.
-        - yTrainList (list): Lista delle variabili target di training.
-        - yTestList (list): Lista delle variabili target di test.
+    Returns:
+        tuple: Quattro liste contenenti:
+            - xTrainList (list of pd.DataFrame): Liste di dati di training per ogni fold.
+            - xTestList (list of pd.DataFrame): Liste di dati di test per ogni fold.
+            - yTrainList (list of pd.Series): Liste di target di training per ogni fold.
+            - yTestList (list of pd.Series): Liste di target di test per ogni fold.
     """
     skf = model_selection.StratifiedKFold(n_splits=folds, random_state=seed, shuffle=True)
 
@@ -296,22 +344,21 @@ def stratifiedKfold(X, y, folds, seed):
 
 def determineDecisionTreeFoldConfiguration(xTrainList, xTestList, yTrainList, yTestList, feature_ranking):
     """
-    Determina la miglior configurazione per un albero decisionale attraverso validazione incrociata.
+    Determina la configurazione migliore per un albero decisionale valutando
+    diversi criteri e il numero di feature selezionate tramite cross-validation stratificata.
 
-    Testa diverse combinazioni del numero di feature e del criterio di impurità ('gini' o 'entropy'),
-    valutando le prestazioni con l'F1-score medio.
+    Args:
+        xTrainList (list of pd.DataFrame): Liste di dati di training per ogni fold.
+        xTestList (list of pd.DataFrame): Liste di dati di test per ogni fold.
+        yTrainList (list of pd.Series): Liste di target di training per ogni fold.
+        yTestList (list of pd.Series): Liste di target di test per ogni fold.
+        feature_ranking (list): Lista ordinata delle feature secondo il loro ranking di importanza.
 
-    Parametri:
-    - xTrainList (list): Lista dei set di training suddivisi per ciascun fold.
-    - xTestList (list): Lista dei set di test suddivisi per ciascun fold.
-    - yTrainList (list): Lista delle etichette di training per ciascun fold.
-    - yTestList (list): Lista delle etichette di test per ciascun fold.
-    - feature_ranking (list): Lista delle feature ordinate per importanza.
-
-    Ritorna:
-    - bestCriterion (str): Il criterio migliore tra 'entropy' e 'gini'.
-    - bestNumFeatures (int): Il numero ottimale di feature selezionate.
-    - bestF1score (float): Il miglior F1-score ottenuto.
+    Returns:
+        tuple:
+            - bestCriterion (str): Il criterio ('entropy' o 'gini') che ha prodotto il miglior punteggio F1 medio.
+            - bestNumFeatures (int): Il numero ottimale di feature da usare.
+            - bestF1score (float): Il miglior punteggio F1 medio ottenuto.
     """
     criterionList = ['entropy', 'gini']
     bestCriterion = ''
@@ -320,6 +367,7 @@ def determineDecisionTreeFoldConfiguration(xTrainList, xTestList, yTrainList, yT
     counter = 0
 
     for criterion in criterionList:
+
         for num_features in range(1, len(feature_ranking) + 1):  # Start from 1 feature to all features
             f1Values = []
 
@@ -358,49 +406,62 @@ def determineDecisionTreeFoldConfiguration(xTrainList, xTestList, yTrainList, yT
 
 def computeConfusionMatrix(yTest, yPred, modelName):
     """
-    Calcola e visualizza la matrice di confusione per un modello di classificazione,
-    stampando anche F1-score e accuratezza media per classe.
+    Calcola e visualizza la matrice di confusione e stampa il classification report per un modello.
 
-    Parametri:
-    yTest (array-like): Valori reali delle classi nel set di test.
-    yPred (array-like): Predizioni fatte dal modello.
-    modelName (str): Nome del modello da usare nel titolo del grafico.
+    Args:
+        yTest (array-like): Target reale.
+        yPred (array-like): Predizioni del modello.
+        modelName (str): Nome del modello, usato nel titolo della figura e stampa.
+
+    Returns:
+        None
     """
     cm = confusion_matrix(yTest, yPred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
-    plt.title('Confusion Matrix for ' + modelName)
+    plt.title('Matrice di confusione per ' + modelName)
     plt.show()
+    print(classification_report(yTest, yPred))
 
-    target_names = sorted(set(yTest))
-    f1_weighted = f1_score(yTest, yPred, average='weighted')
 
-    accuracies = []
-    for label in target_names:
-        mask = (yTest == label)
-        acc = accuracy_score(yTest[mask], yPred[mask])
-        accuracies.append(acc)
+def scale_train_test(X_train, testset):
+    """
+    Standardizza (Z-score scaling) il training set e il test set
+    restituendo due DataFrame Pandas con colonne e indici preservati.
 
-    average_accuracy = sum(accuracies) / len(accuracies)
-    print(f"F1-score pesata: {f1_weighted:.4f}")
-    print(f"Accuratezza media: {average_accuracy:.4f}")
+    Args:
+        - X_train: DataFrame training features
+        - testset: DataFrame test set completo (include anche target)
+
+    Returns:
+        - X_train_scaled_df: DataFrame con training features scalate
+        - testset_scaled_df: DataFrame con test features scalate
+    """
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_train)
+    testset_scaled = scaler.transform(testset[X_train.columns])
+
+    X_train_scaled_df = pd.DataFrame(X_scaled, columns=X_train.columns, index=X_train.index)
+    testset_scaled_df = pd.DataFrame(testset_scaled, columns=X_train.columns, index=testset.index)
+
+    return X_train_scaled_df, testset_scaled_df
 
 
 def stratified_random_sampling(X, y, n_splits, train_size, num_features):
     """
-    Esegue il campionamento casuale stratificato dei dati, mantenendo la distribuzione delle classi
-    e selezionando casualmente un sottoinsieme di feature.
+    Esegue un campionamento stratificato casuale con selezione randomica di feature.
 
-    Parametri:
-    X (DataFrame): Il dataset delle feature indipendenti.
-    y (Series): La variabile target.
-    n_splits (int): Numero di suddivisioni da generare.
-    train_size (float): Percentuale di dati da includere nel training set (0 < train_size < 1).
-    num_features (int): Numero di feature da selezionare casualmente in ogni split.
+    Args:
+        X (pd.DataFrame): Feature del dataset.
+        y (pd.Series): Variabile target.
+        n_splits (int): Numero di split da generare.
+        train_size (float): Percentuale del dataset da usare come training in ogni split.
+        num_features (int): Numero di feature da selezionare casualmente per ogni split.
 
-    Ritorna:
-    samples (list): Lista di tuple contenenti i sottoinsiemi (X_train_randomized, y_train).
-    selected_features (list): Lista delle feature selezionate per ogni split.
+    Returns:
+        tuple:
+            - samples (list): Lista di tuple (X_train_randomized, y_train) per ogni split.
+            - selected_features (list): Lista di array contenenti i nomi delle feature selezionate in ogni split.
     """
     sss = StratifiedShuffleSplit(n_splits=n_splits, train_size=train_size, random_state=42)
     samples = []
@@ -418,26 +479,20 @@ def stratified_random_sampling(X, y, n_splits, train_size, num_features):
 
 def train_svm(samples):
     """
-    Addestra modelli SVM utilizzando GridSearchCV per ottimizzare i parametri.
-    Per ogni campione nei dati, esegue una suddivisione train-validation e cerca
-    i migliori iperparametri utilizzando la validazione incrociata.
+    Addestra modelli SVM su più campioni, effettuando una ricerca esaustiva di iperparametri con GridSearchCV.
 
-    Parametri:
-    samples (list): Lista di tuple (X_sample, y_sample), dove
-        - X_sample è il dataset di input con feature selezionate.
-        - y_sample è il target corrispondente.
+    Args:
+        samples (list): Lista di tuple (X_sample, y_sample), dati e target per ogni campione.
 
-    Ritorna:
-    list: Lista dei migliori modelli SVM trovati per ciascun campione.
+    Returns:
+        list: Lista di modelli SVM ottimizzati per ogni campione.
     """
     weighted_fscore = make_scorer(f1_score, average='weighted')
     best_models = []
 
-    param_grid = {
-        'C': [0.1, 1, 10, 100, 1000],
-        'gamma': [1, 0.1, 0.01, 0.001, 0.0001],
-        'kernel': ['rbf']
-    }
+    param_grid = {'C': [0.1, 1, 10, 100, 1000],
+                  'gamma': [1, 0.1, 0.01, 0.001, 0.0001],
+                  'kernel': ['rbf']}
 
     for i, (X_sample, y_sample) in enumerate(samples):
         print(f"Addestramento modello SVM {i + 1}...")
@@ -446,7 +501,6 @@ def train_svm(samples):
         grid_search = GridSearchCV(svm_model, param_grid, cv=5, scoring=weighted_fscore, n_jobs=-1)
         grid_search.fit(X_train, y_train)
         best_models.append(grid_search.best_estimator_)
-
         print(f"Modello {i + 1}. Migliori parametri: {grid_search.best_params_}")
         print(f"F-score pesato sul validazione set: {grid_search.best_score_}")
         print("-" * 40)
@@ -455,17 +509,15 @@ def train_svm(samples):
 
 def majority_voting(models, X, selected_features):
     """
-    Esegue il voto di maggioranza tra diversi modelli SVM addestrati.
-    Ogni modello fornisce una predizione basata su un sottoinsieme di feature,
-    e la classe finale viene determinata scegliendo quella più frequente.
+    Effettua una predizione aggregata tramite voto di maggioranza da più modelli.
 
-    Parametri:
-    models (list): Lista di modelli addestrati.
-    X (DataFrame): Dataset di test su cui effettuare le predizioni.
-    selected_features (list): Lista delle feature utilizzate da ciascun modello.
+    Args:
+        models (list): Lista di modelli addestrati.
+        X (pd.DataFrame): Dataset sul quale effettuare le predizioni.
+        selected_features (list): Lista di liste/array con le feature usate da ogni modello.
 
-    Ritorna:
-    np.array: Predizioni finali ottenute tramite voto di maggioranza.
+    Returns:
+        np.ndarray: Array delle predizioni finali ottenute tramite voto di maggioranza.
     """
     predictions = []
 
