@@ -5,12 +5,7 @@
 **Matricola:** 806075  
 **Università:** Università degli Studi di Bari "Aldo Moro"
 
-Questo progetto è un caso di studio per il corso di *Analisi dei Dati per la Sicurezza (ADS)*. L’obiettivo è sviluppare una pipeline completa di machine learning per la classificazione di attacchi DDoS, sfruttando tecniche di selezione delle feature e classificatori avanzati.
-
-- Alberi decisionali con **Mutual Information** e **Information Gain**
-- **PCA** per riduzione dimensionale
-- **Ensemble di SVM** con **stratified random sampling**
-
+Questo progetto è un caso di studio per il corso di *Analisi dei Dati per la Sicurezza (ADS)*. 
 ---
 
 ## 📁 File principali

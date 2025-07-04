@@ -129,10 +129,13 @@ f.computeConfusionMatrix(yTest, yPred, modelName)
 # ************* DECISION TREE CON PCA *************
 # *************************************************
 
+
 # Applico PCA al dataset
 X=data.loc[:, independentList]
-pca,pcalist=f.pca(X)
-pcaData=f.applyPCA(X,pca,pcalist)
+X_scaled_df, testset_scaled_df = f.scale_train_test(X, testset)
+
+pca,pcalist=f.pca(X_scaled_df)
+pcaData=f.applyPCA(X_scaled_df,pca,pcalist)
 pcaData.insert(loc=len(independentList), column=target, value=data[target], allow_duplicates=True)
 print(pcaData.columns.values)
 print(pcaData.head())
@@ -159,7 +162,7 @@ bestTree = f.decisionTreeLearner(pcaData[pca_list[:bestNumFeatures]], y, bestCri
 f.showTree(bestTree)
 
 # Seleziono le feature usate per addestrare l'albero e applico la PCA al test set per la valutazione
-XTest_PCA = f.applyPCA(testset.loc[:, independentList],pca,pcalist)
+XTest_PCA = f.applyPCA(testset_scaled_df.loc[:, independentList],pca,pcalist)
 yPred = bestTree.predict(XTest_PCA[pca_list[:bestNumFeatures]])
 modelName = "Decision Tree with PCA"
 f.computeConfusionMatrix(yTest, yPred, modelName)

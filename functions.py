@@ -374,8 +374,6 @@ def determineDecisionTreeFoldConfiguration(xTrainList, xTestList, yTrainList, yT
             for x_train, y_train, x_test, y_test in zip(xTrainList, yTrainList, xTestList, yTestList):
                 counter += 1
                 selected_features = feature_ranking[:num_features]
-                print(num_features)
-                print(selected_features)
                 x_train_selected = x_train[selected_features]
                 x_test_selected = x_test[selected_features]
 
